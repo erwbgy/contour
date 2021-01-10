@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"gopkg.in/yaml.v2"
+	"k8s.io/apimachinery/pkg/util/validation"
 )
 
 // ServerType is the name of a xDS server implementation.
@@ -328,6 +329,35 @@ func (t TimeoutParameters) Validate() error {
 	return nil
 }
 
+type HeaderFields []string
+
+func (h HeaderFields) Validate() error {
+	for _, val := range h {
+		parts := strings.SplitN(val, "=", 2)
+		if len(parts) != 2 {
+			return fmt.Errorf("invalid header field %q - expected header=value", val)
+		}
+		if msgs := validation.IsHTTPHeaderName(parts[0]); len(msgs) != 0 {
+			return fmt.Errorf("invalid header name %q: %v", parts[0], msgs)
+		}
+	}
+	return nil
+}
+
+// HeaderParameters holds configurable header values.
+type HeaderParameters struct {
+	// SetRequestHeaders defines the list of name=value request headers set on all routes
+	SetRequestHeaders HeaderFields `yaml:"set-request-headers"`
+}
+
+// Validate the header parameters.
+func (h HeaderParameters) Validate() error {
+	if err := h.SetRequestHeaders.Validate(); err != nil {
+		return err
+	}
+	return nil
+}
+
 // ClusterParameters holds various configurable cluster values.
 type ClusterParameters struct {
 	// DNSLookupFamily defines how external names are looked up
@@ -384,6 +414,9 @@ type Parameters struct {
 	// be set in the config file.
 	Timeouts TimeoutParameters `yaml:"timeouts,omitempty"`
 
+	// Headers specifies request and response headers applied to all routes.
+	Headers HeaderParameters `yaml:"headers,omitempty"`
+
 	// Namespace of the envoy service to inspect for Ingress status details.
 	EnvoyServiceNamespace string `yaml:"envoy-service-namespace,omitempty"`
 
@@ -434,6 +467,10 @@ func (p *Parameters) Validate() error {
 		return err
 	}
 
+	if err := p.Headers.Validate(); err != nil {
+		return err
+	}
+
 	for _, v := range p.DefaultHTTPVersions {
 		if err := v.Validate(); err != nil {
 			return err
@@ -470,6 +507,9 @@ func Defaults() Parameters {
 			// This is chosen as a rough default to stop idle connections wasting resources,
 			// without stopping slow connections from being terminated too quickly.
 			ConnectionIdleTimeout: "60s",
+		},
+		Headers: HeaderParameters{
+			SetRequestHeaders: HeaderFields{},
 		},
 		EnvoyServiceName:      "envoy",
 		EnvoyServiceNamespace: contourNamespace,

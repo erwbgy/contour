@@ -22,6 +22,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -268,6 +269,13 @@ func doServe(log logrus.FieldLogger, ctx *serveContext) error {
 		return fmt.Errorf("error parsing request timeout: %w", err)
 	}
 
+	var setRequestHeaders map[string]string
+	for _, val := range ctx.Config.Headers.SetRequestHeaders {
+		s := strings.SplitN(val, "=", 2)
+		// the header name has already been validated
+		setRequestHeaders[s[0]] = s[1]
+	}
+
 	listenerConfig := xdscache_v3.ListenerConfig{
 		UseProxyProto:                 ctx.useProxyProto,
 		HTTPAddress:                   ctx.httpAddr,
@@ -333,6 +341,7 @@ func doServe(log logrus.FieldLogger, ctx *serveContext) error {
 					FallbackCertificate:   fallbackCert,
 					DNSLookupFamily:       ctx.Config.Cluster.DNSLookupFamily,
 					ClientCertificate:     clientCert,
+					SetRequestHeaders:     setRequestHeaders,
 				},
 				&dag.ListenerProcessor{},
 			},

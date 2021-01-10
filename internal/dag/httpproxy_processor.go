@@ -69,6 +69,9 @@ type HTTPProxyProcessor struct {
 	// ClientCertificate is the optional identifier of the TLS secret containing client certificate and
 	// private key to be used when establishing TLS connection to upstream cluster.
 	ClientCertificate *types.NamespacedName
+
+	// SetRequestHeaders is an optional list of request headers that will be set on all routes.
+	SetRequestHeaders map[string]string
 }
 
 // Run translates HTTPProxies into DAG objects and
@@ -408,6 +411,10 @@ func (p *HTTPProxyProcessor) computeRoutes(
 			validCond.AddErrorf(contour_api_v1.ConditionTypeRouteError, "RequestHeadersPolicyInvalid",
 				"%s on request headers", err)
 			return nil
+		}
+		// Request headers from config that are set on all routes
+		for key, value := range p.SetRequestHeaders {
+			reqHP.Set[key] = value
 		}
 
 		respHP, err := headersPolicyRoute(route.ResponseHeadersPolicy, false /* disallow Host */)

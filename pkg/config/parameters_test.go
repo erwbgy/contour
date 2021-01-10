@@ -114,6 +114,17 @@ func TestValidateClusterDNSFamilyType(t *testing.T) {
 	assert.NoError(t, IPv6ClusterDNSFamily.Validate())
 }
 
+func TestValidateHeaderFields(t *testing.T) {
+	assert.Error(t, HeaderFields([]string{"X-Envoy-Host"}).Validate())
+	assert.Error(t, HeaderFields([]string{"inv@lid-header=ook"}).Validate())
+
+	assert.NoError(t, HeaderFields([]string{}).Validate())
+	assert.NoError(t, HeaderFields([]string{"X-Envoy-Host=envoy-a12345"}).Validate())
+	assert.NoError(t, HeaderFields([]string{
+		"X-Envoy-Host=envoy-a12345",
+		"l5d-dst-override=kuard.default.svc.cluster.local:80"}).Validate())
+}
+
 func TestValidateNamespacedName(t *testing.T) {
 	assert.NoErrorf(t, NamespacedName{}.Validate(), "empty name should be OK")
 	assert.NoError(t, NamespacedName{Name: "name", Namespace: "ns"}.Validate())
