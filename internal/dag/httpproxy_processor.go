@@ -16,6 +16,7 @@ package dag
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	contour_api_v1 "github.com/projectcontour/contour/apis/projectcontour/v1"
@@ -390,6 +391,10 @@ func (p *HTTPProxyProcessor) computeRoutes(
 		delete(p.orphaned, types.NamespacedName{Name: includedProxy.Name, Namespace: includedProxy.Namespace})
 	}
 
+	dynamicHeaders := map[string]string{
+		"CONTOUR_NAMESPACE": proxy.Namespace,
+	}
+
 	for _, route := range proxy.Spec.Routes {
 		if err := pathMatchConditionsValid(route.Conditions); err != nil {
 			validCond.AddErrorf(contour_api_v1.ConditionTypeRouteError, "PathMatchConditionsNotValid",
@@ -406,18 +411,14 @@ func (p *HTTPProxyProcessor) computeRoutes(
 			return nil
 		}
 
-		reqHP, err := headersPolicyRoute(route.RequestHeadersPolicy, true /* allow Host */)
+		reqHP, err := headersPolicyRoute(route.RequestHeadersPolicy, true /* allow Host */, dynamicHeaders)
 		if err != nil {
 			validCond.AddErrorf(contour_api_v1.ConditionTypeRouteError, "RequestHeadersPolicyInvalid",
 				"%s on request headers", err)
 			return nil
 		}
-		// Request headers from config that are set on all routes
-		for key, value := range p.SetRequestHeaders {
-			reqHP.Set[key] = escapeHeaderValue(value)
-		}
 
-		respHP, err := headersPolicyRoute(route.ResponseHeadersPolicy, false /* disallow Host */)
+		respHP, err := headersPolicyRoute(route.ResponseHeadersPolicy, false /* disallow Host */, dynamicHeaders)
 		if err != nil {
 			validCond.AddErrorf(contour_api_v1.ConditionTypeRouteError, "ResponseHeaderPolicyInvalid",
 				"%s on response headers", err)
@@ -540,14 +541,21 @@ func (p *HTTPProxyProcessor) computeRoutes(
 				}
 			}
 
-			reqHP, err := headersPolicyService(service.RequestHeadersPolicy)
+			dynamicHeaders["CONTOUR_SERVICE_NAME"] = service.Name
+			dynamicHeaders["CONTOUR_SERVICE_PORT"] = strconv.Itoa(service.Port)
+
+			reqHP, err := headersPolicyService(service.RequestHeadersPolicy, dynamicHeaders)
 			if err != nil {
 				validCond.AddErrorf(contour_api_v1.ConditionTypeServiceError, "RequestHeadersPolicyInvalid",
 					"%s on request headers", err)
 				return nil
 			}
+			// Request headers from config that are set on all routes
+			for key, value := range p.SetRequestHeaders {
+				reqHP.Set[key] = escapeHeaderValue(value, dynamicHeaders)
+			}
 
-			respHP, err := headersPolicyService(service.ResponseHeadersPolicy)
+			respHP, err := headersPolicyService(service.ResponseHeadersPolicy, dynamicHeaders)
 			if err != nil {
 				validCond.AddErrorf(contour_api_v1.ConditionTypeServiceError, "ResponseHeadersPolicyInvalid",
 					"%s on response headers", err)

@@ -121,8 +121,13 @@ func TestValidateHeaderFields(t *testing.T) {
 	assert.NoError(t, HeaderFields([]string{}).Validate())
 	assert.NoError(t, HeaderFields([]string{"X-Envoy-Host=envoy-a12345"}).Validate())
 	assert.NoError(t, HeaderFields([]string{
-		"X-Envoy-Host=envoy-a12345",
-		"l5d-dst-override=kuard.default.svc.cluster.local:80"}).Validate())
+		"X-Envoy-Host=envoy-s12345",
+		"l5d-dst-override=kuard.default.svc.cluster.local:80",
+	}).Validate())
+	assert.NoError(t, HeaderFields([]string{
+		"X-Envoy-Host=%HOSTNAME%",
+		"l5d-dst-override=%CONTOUR_SERVICE_NAME%.%CONTOUR_NAMESPACE%.svc.cluster.local:%CONTOUR_SERVICE_PORT",
+	}).Validate())
 }
 
 func TestValidateNamespacedName(t *testing.T) {
