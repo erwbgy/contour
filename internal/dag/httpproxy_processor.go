@@ -414,7 +414,7 @@ func (p *HTTPProxyProcessor) computeRoutes(
 		}
 		// Request headers from config that are set on all routes
 		for key, value := range p.SetRequestHeaders {
-			reqHP.Set[key] = value
+			reqHP.Set[key] = escapeHeaderValue(value)
 		}
 
 		respHP, err := headersPolicyRoute(route.ResponseHeadersPolicy, false /* disallow Host */)
